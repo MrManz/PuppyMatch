@@ -1,19 +1,23 @@
-import pg from "pg";
-throw new Error("DATABASE_URL env var is required");
-}
+import { Pool } from "pg";
 
 
-let ssl: false | { ca?: string; rejectUnauthorized?: boolean } | undefined = undefined;
+// Minimal, TS-safe, and Render-friendly.
+export function createPool() {
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error("DATABASE_URL env var is required");
 
 
+// Keep SSL handling simple to avoid syntax hiccups.
+let ssl: any = undefined;
 if (process.env.DATABASE_CA) {
-// Best practice: verify server cert using Aiven's CA contents
+// Proper verification using Aiven CA (recommended)
 ssl = { ca: process.env.DATABASE_CA };
-} else if ((process.env.PGSSLMODE || "").toLowerCase() === "no-verify") {
-// Quick fix: don't verify certificate chain
-ssl = { rejectUnauthorized: false };
-} else if (connectionString.includes("sslmode=require")) {
-// Many hosted PGs (Aiven) use self-signed certs; allow without CA
+} else if (
+(process.env.PGSSLMODE || "").toLowerCase() === "no-verify" ||
+/sslmode=require/i.test(connectionString) ||
+/aivencloud\.com/i.test(connectionString)
+) {
+// Quick path for hosted/self-signed chains
 ssl = { rejectUnauthorized: false };
 }
 
@@ -25,7 +29,7 @@ return new Pool({ connectionString, ssl });
 export type InterestRow = { user_id: string; interest: string };
 
 
-export async function ensureSchema(pool: pg.Pool) {
+export async function ensureSchema(pool: Pool) {
 await pool.query(`
 CREATE TABLE IF NOT EXISTS user_interests (
 user_id TEXT NOT NULL,
@@ -36,7 +40,7 @@ PRIMARY KEY (user_id, interest)
 }
 
 
-export async function getUserInterests(pool: pg.Pool, userId: string): Promise<string[]> {
+export async function getUserInterests(pool: Pool, userId: string): Promise<string[]> {
 const { rows } = await pool.query<InterestRow>(
 `SELECT interest FROM user_interests WHERE user_id = $1 ORDER BY interest ASC`,
 [userId]
@@ -45,7 +49,7 @@ return rows.map((r) => r.interest);
 }
 
 
-export async function putUserInterests(pool: pg.Pool, userId: string, interests: string[]) {
+export async function putUserInterests(pool: Pool, userId: string, interests: string[]) {
 const client = await pool.connect();
 try {
 await client.query("BEGIN");
