@@ -1,15 +1,24 @@
 import pg from "pg";
-
-
-const { Pool } = pg;
-
-
-export function createPool() {
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
 throw new Error("DATABASE_URL env var is required");
 }
-return new Pool({ connectionString, ssl: { rejectUnauthorized: false } });
+
+
+let ssl: false | { ca?: string; rejectUnauthorized?: boolean } | undefined = undefined;
+
+
+if (process.env.DATABASE_CA) {
+// Best practice: verify server cert using Aiven's CA contents
+ssl = { ca: process.env.DATABASE_CA };
+} else if ((process.env.PGSSLMODE || "").toLowerCase() === "no-verify") {
+// Quick fix: don't verify certificate chain
+ssl = { rejectUnauthorized: false };
+} else if (connectionString.includes("sslmode=require")) {
+// Many hosted PGs (Aiven) use self-signed certs; allow without CA
+ssl = { rejectUnauthorized: false };
+}
+
+
+return new Pool({ connectionString, ssl });
 }
 
 
@@ -42,10 +51,10 @@ try {
 await client.query("BEGIN");
 await client.query(`DELETE FROM user_interests WHERE user_id = $1`, [userId]);
 for (const it of interests) {
-await client.query(`INSERT INTO user_interests(user_id, interest) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [
-userId,
-it,
-]);
+await client.query(
+`INSERT INTO user_interests(user_id, interest) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+[userId, it]
+);
 }
 await client.query("COMMIT");
 } catch (e) {
