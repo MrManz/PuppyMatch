@@ -1,116 +1,135 @@
 // src/lib/api.ts
 
-/**
- * Base API URL.
- * - Uses VITE_API_BASE if provided
- * - Or window.__API_BASE__ (for runtime override)
- * - Defaults to http://localhost:3000
- */
-const API_BASE: string =
-  (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_BASE) ||
-  (typeof window !== "undefined" && (window as any).__API_BASE__) ||
+// ---- Base URL ---------------------------------------------------------------
+const BASE: string =
+  (window as any).__API_BASE__ ||
+  import.meta.env.VITE_API_BASE ||
   "http://localhost:3000";
 
-/**
- * Read JWT token from localStorage
- */
-function getToken(): string | null {
+// ---- Local storage helpers --------------------------------------------------
+export function getToken(): string | null {
   return localStorage.getItem("token");
 }
 
-/**
- * Attach Authorization header if token exists
- */
-function authHeaders(): Record<string, string> {
+export type StoredUser = { id?: string | number; email?: string; username?: string } | null;
+
+export function getUser(): StoredUser {
+  try {
+    const raw = localStorage.getItem("user");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function logout(redirect = true) {
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  if (redirect) {
+    window.location.href = "/login"; // or your auth route
+  }
+}
+
+
+// ---- Internal: auth header + fetch wrapper ----------------------------------
+function authHeader(): Record<string, string> {
   const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 /**
- * Generic API fetch wrapper
- * - Adds Content-Type + Authorization
- * - Redirects to /login on 401
+ * fetchWithAuth: centralized 401 handling.
+ * - If response is 401, clear storage and redirect to /login immediately.
+ * - Otherwise returns the Response for normal handling.
  */
-export async function apiFetch<T = any>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const r = await fetch(`${API_BASE}${path}`, {
-    ...options,
+async function fetchWithAuth(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const res = await fetch(input, init);
+  if (res.status === 401) {
+    try {
+      const data = await res.clone().json();
+      if (data?.error === "user_not_found_for_token" || data?.error === "invalid_token") {
+        // treat as unauthorized
+      }
+    } catch {
+      // ignore parse errors, still treat as unauthorized
+    }
+    logout();
+    setTimeout(() => (window.location.href = "/login"), 0);
+    throw new Error("unauthorized");
+  }
+  return res;
+}
+
+// ---- Auth API ---------------------------------------------------------------
+export async function apiLogin(usernameOrEmail: string, password: string) {
+  const res = await fetch(`${BASE}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: usernameOrEmail, password }),
+  });
+
+  if (!res.ok) {
+    let msg = "Login failed";
+    try {
+      const data = await res.json();
+      if (data?.message) msg = data.message; // 👈 use backend message
+    } catch {
+      // ignore parse errors
+    }
+    throw new Error(msg);
+  }
+
+  const data = await res.json();
+  if (data?.token) localStorage.setItem("token", data.token);
+  if (data?.user) localStorage.setItem("user", JSON.stringify(data.user));
+  return data as { token: string; user?: StoredUser };
+}
+
+export async function apiRegister(usernameOrEmail: string, password: string) {
+  const res = await fetch(`${BASE}/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: usernameOrEmail, password }),
+  });
+
+  if (!res.ok) {
+    let msg = "Registration failed";
+    try {
+      const data = await res.json();
+      if (data?.message) msg = data.message; // 👈 use backend message
+    } catch {
+      // ignore parse errors
+    }
+    throw new Error(msg);
+  }
+
+  const data = await res.json();
+  if (data?.token) localStorage.setItem("token", data.token);
+  if (data?.user) localStorage.setItem("user", JSON.stringify(data.user));
+  return data as { token: string; user?: StoredUser };
+}
+
+// ---- Protected API ----------------------------------------------------------
+export async function apiGetInterests(): Promise<string[]> {
+  const res = await fetchWithAuth(`${BASE}/users/me/interests`, {
     headers: {
       "Content-Type": "application/json",
-      ...authHeaders(),
-      ...(options.headers || {}),
+      ...authHeader(),
     },
   });
-
-  if (r.status === 401) {
-    // redirect to login if unauthorized
-    window.location.href = "/login";
-    throw new Error("Unauthorized — redirecting to login");
-  }
-
-  if (!r.ok) {
-    const txt = await r.text();
-    throw new Error(`API error ${r.status}: ${txt}`);
-  }
-
-  return r.json() as Promise<T>;
+  if (!res.ok) throw new Error(`Fetch interests failed: ${res.status}`);
+  return res.json();
 }
 
-/**
- * Login user and store JWT
- */
-export async function apiLogin(
-  username: string,
-  password: string
-): Promise<{ token: string }> {
-  const data = await apiFetch<{ token: string }>("/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ username, password }),
-  });
-  localStorage.setItem("token", data.token);
-  return data;
-}
-
-/**
- * Register new user and store JWT
- */
-export async function apiRegister(
-  username: string,
-  password: string
-): Promise<{ token: string }> {
-  const data = await apiFetch<{ token: string }>("/auth/register", {
-    method: "POST",
-    body: JSON.stringify({ username, password }),
-  });
-  localStorage.setItem("token", data.token);
-  return data;
-}
-
-/**
- * Logout user (clear local storage)
- */
-export function apiLogout(): void {
-  localStorage.removeItem("token");
-  window.location.href = "/login";
-}
-
-/**
- * Get current user's interests
- */
-export async function apiGetInterests(): Promise<string[]> {
-  const data = await apiFetch<{ interests: string[] }>("/users/me/interests");
-  return Array.isArray(data.interests) ? data.interests : [];
-}
-
-/**
- * Save current user's interests
- */
-export async function apiPutInterests(interests: string[]): Promise<number> {
-  const data = await apiFetch<{ saved: number }>("/users/me/interests", {
+export async function apiPutInterests(interests: string[]) {
+  const res = await fetchWithAuth(`${BASE}/users/me/interests`, {
     method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeader(),
+    },
     body: JSON.stringify({ interests }),
   });
-  return data.saved;
+  if (!res.ok) throw new Error(`Save interests failed: ${res.status}`);
+  return res.json();
 }
