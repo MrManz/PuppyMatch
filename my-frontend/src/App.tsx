@@ -17,13 +17,29 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { ChevronDown, CircleX, Download, Filter, Plus, Save, Search, Upload, X } from "lucide-react";
 
+/**
+ * API base configuration
+ */
 const API_BASE: string =
   (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_BASE) ||
   (typeof window !== "undefined" && (window as any).__API_BASE__) ||
   "http://localhost:3000";
 
+/**
+ * Catalog
+ */
 const CATALOG: Record<string, string[]> = {
-  Outdoors: ["Hiking", "Camping", "Bouldering", "Rock Climbing", "Trail Running", "Cycling", "Birdwatching", "Skiing", "Snowboarding"],
+  Outdoors: [
+    "Hiking",
+    "Camping",
+    "Bouldering",
+    "Rock Climbing",
+    "Trail Running",
+    "Cycling",
+    "Birdwatching",
+    "Skiing",
+    "Snowboarding",
+  ],
   Sports: ["Football", "Basketball", "Tennis", "Table Tennis", "Badminton", "Swimming", "Martial Arts"],
   Creative: ["Painting", "Photography", "Writing", "Calligraphy", "UI/UX", "Graphic Design", "Music Production"],
   Tech: ["Web Development", "Data Science", "Machine Learning", "Cybersecurity", "Open Source", "Blockchain", "DevOps"],
@@ -36,13 +52,13 @@ const keyOf = (s: string) => s.trim().toLowerCase();
 const LS_SELECTED = "interest_picker_selected_v1";
 const LS_USERID = "interest_picker_user_id_v1";
 
+/** API */
 async function apiGetInterests(userId: string): Promise<string[]> {
   const r = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/interests`);
   if (!r.ok) throw new Error(`GET interests failed: ${r.status}`);
   const data = await r.json();
   return Array.isArray(data?.interests) ? data.interests : [];
 }
-
 async function apiPutInterests(userId: string, interests: string[]): Promise<number> {
   const r = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/interests`, {
     method: "PUT",
@@ -54,6 +70,7 @@ async function apiPutInterests(userId: string, interests: string[]): Promise<num
   return Number(data?.saved ?? 0);
 }
 
+/** Chip (no paw/check/plus icons; just label) */
 function InterestChip({
   label,
   selected,
@@ -72,7 +89,7 @@ function InterestChip({
       ].join(" ")}
       aria-pressed={selected}
     >
-      <span>{label}</span>
+      <span className="truncate">{label}</span>
     </button>
   );
 }
@@ -110,6 +127,7 @@ export default function App() {
     return { flatList: flat, categories: cats };
   }, [selected]);
 
+  /** Persist locally */
   useEffect(() => {
     try {
       localStorage.setItem(LS_SELECTED, JSON.stringify(selected));
@@ -121,6 +139,7 @@ export default function App() {
     } catch {}
   }, [userId]);
 
+  /** Load from API */
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -143,6 +162,7 @@ export default function App() {
     };
   }, [userId]);
 
+  /** Filters */
   const filtered = useMemo(() => {
     const q = keyOf(query);
     const catFilterOn = Object.values(activeCats).some(Boolean);
@@ -157,6 +177,7 @@ export default function App() {
 
   const selectedCount = Object.keys(selected).length;
 
+  /** Mutators */
   const toggleSelection = (label: string) => {
     const k = keyOf(label);
     setSelected((prev) => {
@@ -166,9 +187,7 @@ export default function App() {
       return next;
     });
   };
-
   const removeAll = () => setSelected({});
-
   const addCustom = () => {
     const val = inputRef.current?.value?.trim();
     if (!val) return;
@@ -177,7 +196,6 @@ export default function App() {
     if (inputRef.current) inputRef.current.value = "";
     toast.success(`Added "${val}"`);
   };
-
   const exportJSON = () => {
     const data = JSON.stringify({ interests: Object.keys(selected) }, null, 2);
     const blob = new Blob([data], { type: "application/json" });
@@ -190,7 +208,6 @@ export default function App() {
     a.remove();
     URL.revokeObjectURL(url);
   };
-
   const importJSON = async (file: File) => {
     try {
       const text = await file.text();
@@ -203,11 +220,10 @@ export default function App() {
       } else {
         toast.error("Invalid file format");
       }
-    } catch (e) {
+    } catch {
       toast.error("Failed to import file");
     }
   };
-
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -221,84 +237,7 @@ export default function App() {
     }
   };
 
+  /** UI */
   return (
     <div className="min-h-dvh bg-gray-50">
-      <div className="mx-auto max-w-screen-sm p-4 sm:p-6">
-        {/* header, inputs, chips, tabs... unchanged from your current file */}
-      </div>
-    </div>
-  );
-}
-
-function ChipGrid({
-  items,
-  selected,
-  onToggle,
-}: {
-  items: { key: string; label: string; category: string }[];
-  selected: Record<string, boolean>;
-  onToggle: (label: string) => void;
-}) {
-  if (!items.length) return <p className="text-sm text-gray-600">No results.</p>;
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-      {items.map((t) => (
-        <InterestChip key={t.key} label={t.label} selected={Boolean(selected[t.key])} onToggle={() => onToggle(t.label)} />
-      ))}
-    </div>
-  );
-}
-
-function CategoryBrowser({
-  selected,
-  onToggle,
-}: {
-  selected: Record<string, boolean>;
-  onToggle: (label: string) => void;
-}) {
-  return (
-    <div className="space-y-4">
-      {Object.entries(CATALOG).map(([cat, items]) => (
-        <Card key={cat}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base">{cat}</CardTitle>
-                <CardDescription>{items.length} interests</CardDescription>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1">
-                    Bulk actions <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>{cat}</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => items.forEach((l) => !selected[keyOf(l)] && onToggle(l))}>
-                    Select all
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => items.forEach((l) => onToggle(l))}>Toggle all</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => items.forEach((l) => selected[keyOf(l)] && onToggle(l))}>
-                    Deselect all
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ChipGrid
-              items={items.map((label) => ({ key: keyOf(label), label, category: cat }))}
-              selected={selected}
-              onToggle={onToggle}
-            />
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-function capitalize(s: string) {
-  return s.replace(/\\b\\w/g, (m) => m.toUpperCase());
-}
+      <div className="mx-auto max-w-s
