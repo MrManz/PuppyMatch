@@ -18,16 +18,13 @@ import { toast } from "sonner";
 import { ChevronDown, CircleX, Filter, Save, Search, X } from "lucide-react";
 
 /**
- * API base configuration
+ * API base
  */
 const API_BASE: string =
   (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_BASE) ||
   (typeof window !== "undefined" && (window as any).__API_BASE__) ||
   "http://localhost:3000";
 
-/**
- * Catalog
- */
 const CATALOG: Record<string, string[]> = {
   Outdoors: ["Hiking", "Camping", "Bouldering", "Rock Climbing", "Trail Running", "Cycling", "Birdwatching", "Skiing", "Snowboarding"],
   Sports: ["Football", "Basketball", "Tennis", "Table Tennis", "Badminton", "Swimming", "Martial Arts"],
@@ -42,13 +39,13 @@ const keyOf = (s: string) => s.trim().toLowerCase();
 const LS_SELECTED = "interest_picker_selected_v1";
 const LS_USERID = "interest_picker_user_id_v1";
 
-/** API */
 async function apiGetInterests(userId: string): Promise<string[]> {
   const r = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/interests`);
   if (!r.ok) throw new Error(`GET interests failed: ${r.status}`);
   const data = await r.json();
   return Array.isArray(data?.interests) ? data.interests : [];
 }
+
 async function apiPutInterests(userId: string, interests: string[]): Promise<number> {
   const r = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/interests`, {
     method: "PUT",
@@ -60,34 +57,23 @@ async function apiPutInterests(userId: string, interests: string[]): Promise<num
   return Number(data?.saved ?? 0);
 }
 
-/** Chip */
-function InterestChip({
-  label,
-  selected,
-  onToggle,
-}: {
-  label: string;
-  selected: boolean;
-  onToggle: (next: boolean) => void;
-}) {
+function InterestChip({ label, selected, onToggle }: { label: string; selected: boolean; onToggle: (next: boolean) => void }) {
   return (
     <button
       onClick={() => onToggle(!selected)}
       className={[
         "px-3 py-2 text-sm rounded-2xl border transition active:scale-[0.98]",
-        selected ? "bg-pink-600 text-white border-pink-600" : "bg-white text-black border-gray-300 hover:border-pink-400",
+        selected ? "bg-blue-600 text-white border-blue-600" : "bg-white text-black border-gray-300 hover:border-blue-400",
       ].join(" ")}
       aria-pressed={selected}
     >
-      <span className="truncate">{label}</span>
+      <span>{label}</span>
     </button>
   );
 }
 
 export default function App() {
-  const [userId, setUserId] = useState<string>(
-    (typeof localStorage !== "undefined" && localStorage.getItem(LS_USERID)) || "demo-user"
-  );
+  const [userId, setUserId] = useState<string>((typeof localStorage !== "undefined" && localStorage.getItem(LS_USERID)) || "demo-user");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState("");
@@ -117,7 +103,6 @@ export default function App() {
     return { flatList: flat };
   }, [selected]);
 
-  /** Persist locally */
   useEffect(() => {
     try {
       localStorage.setItem(LS_SELECTED, JSON.stringify(selected));
@@ -129,7 +114,6 @@ export default function App() {
     } catch {}
   }, [userId]);
 
-  /** Load from API */
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -152,7 +136,6 @@ export default function App() {
     };
   }, [userId]);
 
-  /** Filters */
   const filtered = useMemo(() => {
     const q = keyOf(query);
     const catFilterOn = Object.values(activeCats).some(Boolean);
@@ -167,7 +150,6 @@ export default function App() {
 
   const selectedCount = Object.keys(selected).length;
 
-  /** Mutators */
   const toggleSelection = (label: string) => {
     const k = keyOf(label);
     setSelected((prev) => {
@@ -177,6 +159,7 @@ export default function App() {
       return next;
     });
   };
+
   const removeAll = () => setSelected({});
 
   const handleSave = async () => {
@@ -192,22 +175,19 @@ export default function App() {
     }
   };
 
-  /** UI */
   return (
     <div className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-screen-sm p-4 sm:p-6">
         {/* Pup Play styled header */}
-        <header className="sticky top-0 z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-6 pb-5 bg-pink-100/90 backdrop-blur rounded-b-3xl shadow">
+        <header className="sticky top-0 z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-6 pb-5 bg-blue-100/90 backdrop-blur rounded-b-3xl shadow">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-pink-700 flex items-center gap-2">
-                🐾 PupMatch
-              </h1>
-              <p className="text-sm text-pink-600">Find playmates by choosing your favorite interests!</p>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-blue-700 flex items-center gap-2">🐾 PupMatch</h1>
+              <p className="text-sm text-blue-600">Find playmates by choosing your favorite interests!</p>
             </div>
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2 border-pink-400 text-pink-700 hover:bg-pink-50">
+                <Button variant="outline" className="gap-2 border-blue-400 text-blue-700 hover:bg-blue-50">
                   <Filter className="h-4 w-4" /> Filters
                 </Button>
               </DialogTrigger>
@@ -219,11 +199,7 @@ export default function App() {
                   <div>
                     <label className="text-sm font-medium">User</label>
                     <div className="mt-2 flex gap-2">
-                      <Input
-                        value={userId}
-                        onChange={(e) => setUserId(e.target.value)}
-                        placeholder="user id (email/uuid)"
-                      />
+                      <Input value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="user id (email/uuid)" />
                     </div>
                   </div>
                   <div>
@@ -241,9 +217,7 @@ export default function App() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="secondary" onClick={() => setActiveCats({})}>
-                    Reset
-                  </Button>
+                  <Button variant="secondary" onClick={() => setActiveCats({})}>Reset</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -252,13 +226,7 @@ export default function App() {
           <div className="mt-3 flex items-center gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" aria-hidden />
-              <Input
-                ref={inputRef}
-                placeholder="Search interests..."
-                className="pl-8"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
+              <Input ref={inputRef} placeholder="Search interests..." className="pl-8" value={query} onChange={(e) => setQuery(e.target.value)} />
             </div>
           </div>
         </header>
@@ -276,32 +244,21 @@ export default function App() {
                 <p className="text-sm text-gray-600">No interests yet. Try picking one below!</p>
               ) : (
                 <div className="flex flex-wrap gap-2">
-                  {Object.keys(selected)
-                    .sort()
-                    .map((k) => (
-                      <Badge key={k} variant="secondary" className="flex items-center gap-1 px-2 py-1">
-                        {capitalize(k)}
-                        <button
-                          onClick={() =>
-                            setSelected((prev) => {
-                              const n = { ...prev };
-                              delete n[k];
-                              return n;
-                            })
-                          }
-                          aria-label={`Remove ${k}`}
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
+                  {Object.keys(selected).sort().map((k) => (
+                    <Badge key={k} variant="secondary" className="flex items-center gap-1 px-2 py-1">
+                      {capitalize(k)}
+                      <button onClick={() => setSelected((prev) => { const n = { ...prev }; delete n[k]; return n; })} aria-label={`Remove ${k}`}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
                 </div>
               )}
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button variant="secondary" onClick={removeAll} disabled={Object.keys(selected).length === 0}>
                   <CircleX className="h-4 w-4 mr-1" /> Clear all
                 </Button>
-                <Button onClick={handleSave} disabled={saving} className="bg-pink-600 hover:bg-pink-700">
+                <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white">
                   <Save className="h-4 w-4 mr-1" /> {saving ? "Saving…" : "Save preferences"}
                 </Button>
               </div>
@@ -338,11 +295,7 @@ export default function App() {
                   <CardDescription>Commonly chosen by users</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ChipGrid
-                    items={[...flatList].sort((a, b) => b.pop - a.pop).slice(0, 40)}
-                    selected={selected}
-                    onToggle={toggleSelection}
-                  />
+                  <ChipGrid items={[...flatList].sort((a, b) => b.pop - a.pop).slice(0, 40)} selected={selected} onToggle={toggleSelection} />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -351,17 +304,12 @@ export default function App() {
 
         <footer className="h-20" />
 
-        {/* Mobile sticky actions */}
         <div className="fixed inset-x-0 bottom-0 border-t bg-white/80 backdrop-blur p-3 sm:hidden">
           <div className="flex items-center justify-between gap-2">
-            <div className="text-sm text-gray-700">
-              <strong>{selectedCount}</strong> selected
-            </div>
+            <div className="text-sm text-gray-700"><strong>{selectedCount}</strong> selected</div>
             <div className="flex items-center gap-2">
-              <Button variant="secondary" onClick={removeAll} disabled={selectedCount === 0}>
-                Clear
-              </Button>
-              <Button onClick={handleSave} disabled={saving} className="bg-pink-600 hover:bg-pink-700 text-white">
+              <Button variant="secondary" onClick={removeAll} disabled={selectedCount === 0}>Clear</Button>
+              <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white">
                 {saving ? "Saving…" : "Save"}
               </Button>
             </div>
@@ -372,16 +320,7 @@ export default function App() {
   );
 }
 
-/** Grids & helpers */
-function ChipGrid({
-  items,
-  selected,
-  onToggle,
-}: {
-  items: { key: string; label: string; category: string }[];
-  selected: Record<string, boolean>;
-  onToggle: (label: string) => void;
-}) {
+function ChipGrid({ items, selected, onToggle }: { items: { key: string; label: string; category: string }[]; selected: Record<string, boolean>; onToggle: (label: string) => void; }) {
   if (!items.length) return <p className="text-sm text-gray-600">No results.</p>;
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -392,13 +331,7 @@ function ChipGrid({
   );
 }
 
-function CategoryBrowser({
-  selected,
-  onToggle,
-}: {
-  selected: Record<string, boolean>;
-  onToggle: (label: string) => void;
-}) {
+function CategoryBrowser({ selected, onToggle }: { selected: Record<string, boolean>; onToggle: (label: string) => void; }) {
   return (
     <div className="space-y-4">
       {Object.entries(CATALOG).map(([cat, items]) => (
@@ -412,29 +345,21 @@ function CategoryBrowser({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1">
-                    Bulk actions <ChevronDown className="h-4 w-4" />
+                    Bulk actions <ChevronDown className="h-4 w-4"/>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>{cat}</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => items.forEach((l) => !selected[keyOf(l)] && onToggle(l))}>
-                    Select all
-                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => items.forEach((l) => !selected[keyOf(l)] && onToggle(l))}>Select all</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => items.forEach((l) => onToggle(l))}>Toggle all</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => items.forEach((l) => selected[keyOf(l)] && onToggle(l))}>
-                    Deselect all
-                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => items.forEach((l) => selected[keyOf(l)] && onToggle(l))}>Deselect all</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </CardHeader>
           <CardContent>
-            <ChipGrid
-              items={items.map((label) => ({ key: keyOf(label), label, category: cat }))}
-              selected={selected}
-              onToggle={onToggle}
-            />
+            <ChipGrid items={items.map((label) => ({ key: keyOf(label), label, category: cat }))} selected={selected} onToggle={onToggle} />
           </CardContent>
         </Card>
       ))}
@@ -443,5 +368,5 @@ function CategoryBrowser({
 }
 
 function capitalize(s: string) {
-  return s.replace(/\b\w/g, (m) => m.toUpperCase());
+  return s.replace(/\\b\\w/g, (m) => m.toUpperCase());
 }
