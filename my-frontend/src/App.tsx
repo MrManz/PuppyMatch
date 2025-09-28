@@ -18,7 +18,7 @@ export default function App() {
       {/* Top bar with user info + logout */}
       <header className="flex justify-between items-center p-4 bg-gray-100 shadow">
         <span className="font-semibold">
-          PuppyMatch 🐶 — {user.email ?? user.username}
+          PuppyMatch 🐶
         </span>
         <button
           onClick={() => logout()}
