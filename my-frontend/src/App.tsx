@@ -4,16 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { ChevronDown, CircleX, Save, Search, X } from "lucide-react";
+import { CircleX, Save, Search, X } from "lucide-react";
+
+import CategoryBrowser from "@/components/CategoryBrowser";
+import ChipGrid from "@/components/ChipGrid";
+import { CATALOG, keyOf } from "@/lib/catalog";
 
 /**
  * API base
@@ -23,17 +19,6 @@ const API_BASE: string =
   (typeof window !== "undefined" && (window as any).__API_BASE__) ||
   "http://localhost:3000";
 
-const CATALOG: Record<string, string[]> = {
-  Outdoors: ["Hiking", "Camping", "Bouldering", "Rock Climbing", "Trail Running", "Cycling", "Birdwatching", "Skiing", "Snowboarding"],
-  Sports: ["Football", "Basketball", "Tennis", "Table Tennis", "Badminton", "Swimming", "Martial Arts"],
-  Creative: ["Painting", "Photography", "Writing", "Calligraphy", "UI/UX", "Graphic Design", "Music Production"],
-  Tech: ["Web Development", "Data Science", "Machine Learning", "Cybersecurity", "Open Source", "Blockchain", "DevOps"],
-  Entertainment: ["Sci-Fi", "Fantasy", "Anime", "Board Games", "Video Games", "Podcasts", "Movies", "TV Shows"],
-  Wellness: ["Meditation", "Yoga", "Mindfulness", "Running", "Strength Training", "Nutrition"],
-  "Food & Drink": ["Baking", "Coffee", "Tea", "Vegan Cooking", "BBQ", "Wine Tasting", "Cocktails"],
-};
-
-const keyOf = (s: string) => s.trim().toLowerCase();
 const LS_SELECTED = "interest_picker_selected_v1";
 const LS_USERID = "interest_picker_user_id_v1";
 
@@ -55,29 +40,6 @@ async function apiPutInterests(userId: string, interests: string[]): Promise<num
   return Number(data?.saved ?? 0);
 }
 
-function InterestChip({
-  label,
-  selected,
-  onToggle,
-}: {
-  label: string;
-  selected: boolean;
-  onToggle: (next: boolean) => void;
-}) {
-  return (
-    <button
-      onClick={() => onToggle(!selected)}
-      className={[
-        "px-3 py-2 text-sm rounded-2xl border transition active:scale-[0.98]",
-        selected ? "bg-blue-600 text-white border-blue-600" : "bg-white text-black border-gray-300 hover:border-blue-400",
-      ].join(" ")}
-      aria-pressed={selected}
-    >
-      <span>{label}</span>
-    </button>
-  );
-}
-
 export default function App() {
   const [userId] = useState<string>(
     (typeof localStorage !== "undefined" && localStorage.getItem(LS_USERID)) || "demo-user"
@@ -95,6 +57,7 @@ export default function App() {
   });
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Build a flat list for "All" and "Popular" tabs (keeps any custom, previously-selected items visible)
   const { flatList } = useMemo(() => {
     const cats = Object.keys(CATALOG);
     const flat: { key: string; label: string; category: string; pop: number }[] = [];
@@ -102,7 +65,6 @@ export default function App() {
       const items = CATALOG[cat];
       for (const label of items) flat.push({ key: keyOf(label), label, category: cat, pop: items.length });
     }
-    // ensure any previously-selected custom interests still render
     for (const k of Object.keys(selected)) {
       if (!flat.find((f) => f.key === k)) flat.push({ key: k, label: capitalize(k), category: "Custom", pop: 1 });
     }
@@ -116,7 +78,7 @@ export default function App() {
     } catch {}
   }, [selected]);
 
-  // load interests from API
+  // initial load from API
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -139,7 +101,7 @@ export default function App() {
     };
   }, [userId]);
 
-  // filtering (search only, since Filters button was removed)
+  // simple search filter
   const filtered = useMemo(() => {
     const q = keyOf(query);
     if (!q) return flatList;
@@ -304,75 +266,6 @@ export default function App() {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function ChipGrid({
-  items,
-  selected,
-  onToggle,
-}: {
-  items: { key: string; label: string; category: string }[];
-  selected: Record<string, boolean>;
-  onToggle: (label: string) => void;
-}) {
-  if (!items.length) return <p className="text-sm text-gray-600">No results.</p>;
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-      {items.map((t) => (
-        <InterestChip key={t.key} label={t.label} selected={Boolean(selected[t.key])} onToggle={() => onToggle(t.label)} />
-      ))}
-    </div>
-  );
-}
-
-function CategoryBrowser({
-  selected,
-  onToggle,
-}: {
-  selected: Record<string, boolean>;
-  onToggle: (label: string) => void;
-}) {
-  return (
-    <div className="space-y-4">
-      {Object.entries(CATALOG).map(([cat, items]) => (
-        <Card key={cat}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base">{cat}</CardTitle>
-                <CardDescription>{items.length} interests</CardDescription>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1">
-                    Bulk actions <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>{cat}</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => items.forEach((l) => !selected[keyOf(l)] && onToggle(l))}>
-                    Select all
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => items.forEach((l) => onToggle(l))}>Toggle all</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => items.forEach((l) => selected[keyOf(l)] && onToggle(l))}>
-                    Deselect all
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ChipGrid
-              items={items.map((label) => ({ key: keyOf(label), label, category: cat }))}
-              selected={selected}
-              onToggle={onToggle}
-            />
-          </CardContent>
-        </Card>
-      ))}
     </div>
   );
 }
