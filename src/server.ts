@@ -9,11 +9,14 @@ app.use(express.json());
 
 app.use("/auth", authRouter);
 
-// Replace old userId path params with current user from token:
+// Authenticated interests endpoints using JWT subject
 app.get("/users/me/interests", authMiddleware, async (req, res) => {
   const userId = (req as any).user.sub as string;
-  const rows = await pool.query(`SELECT interest FROM user_interests WHERE user_id = $1 ORDER BY interest`, [userId]);
-  res.json({ userId, interests: rows.rows.map((r) => r.interest) });
+  const q = await pool.query<{ interest: string }>(
+    `SELECT interest FROM user_interests WHERE user_id = $1 ORDER BY interest`,
+    [userId]
+  );
+  res.json({ userId, interests: q.rows.map((r) => r.interest) });
 });
 
 app.put("/users/me/interests", authMiddleware, async (req, res) => {
@@ -23,7 +26,10 @@ app.put("/users/me/interests", authMiddleware, async (req, res) => {
   try {
     await pool.query(`DELETE FROM user_interests WHERE user_id = $1`, [userId]);
     for (const interest of interests) {
-      await pool.query(`INSERT INTO user_interests (user_id, interest) VALUES ($1, $2)`, [userId, interest]);
+      await pool.query(`INSERT INTO user_interests (user_id, interest) VALUES ($1, $2)`, [
+        userId,
+        interest,
+      ]);
     }
     await pool.query("COMMIT");
     res.json({ userId, saved: interests.length });
@@ -34,4 +40,6 @@ app.put("/users/me/interests", authMiddleware, async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`API listening on :${PORT}`));
+app.listen(PORT, () => {
+  console.log(`API listening on :${PORT}`);
+});
