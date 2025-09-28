@@ -5,6 +5,13 @@ import { Pool } from "pg";
 import dotenv from "dotenv";
 import { createAuthRouter, requireAuth } from "./auth.js";
 
+
+// Allow multiple origins (add yours here)
+const ALLOWED_ORIGINS = [
+  "http://localhost:5173",
+  "https://puppymatch-frontend.onrender.com", // ← your deployed frontend
+];
+
 dotenv.config();
 
 const PORT = Number(process.env.PORT || 3000);
@@ -50,8 +57,13 @@ const app = express();
 
 app.use(
   cors({
-    origin: CORS_ORIGIN,
-    credentials: true,
+    origin(origin, callback) {
+      // allow requests with no origin (like curl or server-to-server)
+      if (!origin) return callback(null, true);
+      if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+      return callback(new Error(`CORS: Origin ${origin} not allowed`));
+    },
+    credentials: true, // keep if you ever use cookies; harmless otherwise
   })
 );
 app.use(express.json());
