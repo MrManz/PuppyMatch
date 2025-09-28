@@ -240,4 +240,284 @@ export default function App() {
   /** UI */
   return (
     <div className="min-h-dvh bg-gray-50">
-      <div className="mx-auto max-w-s
+      <div className="mx-auto max-w-screen-sm p-4 sm:p-6">
+        <header className="sticky top-0 z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-4 pb-3 bg-gray-50/90 backdrop-blur">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h1 className="text-xl sm:text-2xl font-semibold">Choose your interests</h1>
+              <p className="text-sm text-gray-600">Tap to add or remove interests. API: {API_BASE}</p>
+            </div>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Filter className="h-4 w-4" />Filters
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Filters & Categories</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">User</label>
+                    <div className="mt-2 flex gap-2">
+                      <Input
+                        value={userId}
+                        onChange={(e) => setUserId(e.target.value)}
+                        placeholder="user id (email/uuid)"
+                      />
+                      <Button
+                        variant="secondary"
+                        onClick={() => setUserId(`user-${Math.random().toString(36).slice(2, 8)}`)}
+                      >
+                        Random
+                      </Button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Quick toggles</label>
+                    <div className="mt-2 space-y-2">
+                      <label className="flex items-center gap-2 text-sm">
+                        <Checkbox checked={showOnlyPopular} onCheckedChange={(v) => setShowOnlyPopular(Boolean(v))} />
+                        Show only popular
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <Checkbox checked={showOnlySelected} onCheckedChange={(v) => setShowOnlySelected(Boolean(v))} />
+                        Show only selected
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="secondary" onClick={() => setActiveCats({})}>
+                    Reset
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          <div className="mt-3 flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" aria-hidden />
+              <Input
+                ref={inputRef}
+                placeholder="Search or add a new interest..."
+                className="pl-8"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && query.trim()) addCustom();
+                }}
+              />
+            </div>
+            <Button onClick={addCustom}>
+              <Plus className="h-4 w-4 mr-1" />
+              Add
+            </Button>
+          </div>
+        </header>
+
+        <main className="mt-4 space-y-6">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Your selection</CardTitle>
+              <CardDescription>
+                {loading ? "Loading…" : `${Object.keys(selected).length} selected`} {saving ? " • Saving…" : ""}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {Object.keys(selected).length === 0 ? (
+                <p className="text-sm text-gray-600">No interests yet. Try "Hiking", "Podcasts", or add your own.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {Object.keys(selected)
+                    .sort()
+                    .map((k) => (
+                      <Badge key={k} variant="secondary" className="flex items-center gap-1 px-2 py-1">
+                        {capitalize(k)}
+                        <button
+                          onClick={() =>
+                            setSelected((prev) => {
+                              const n = { ...prev };
+                              delete n[k];
+                              return n;
+                            })
+                          }
+                          aria-label={`Remove ${k}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                </div>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={removeAll} disabled={Object.keys(selected).length === 0}>
+                  <CircleX className="h-4 w-4 mr-1" />
+                  Clear all
+                </Button>
+                <Button onClick={handleSave} disabled={saving}>
+                  <Save className="h-4 w-4 mr-1" />
+                  {saving ? "Saving…" : "Save preferences"}
+                </Button>
+                <Button variant="outline" onClick={exportJSON}>
+                  <Download className="h-4 w-4 mr-1" />
+                  Export JSON
+                </Button>
+                <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="file"
+                    accept="application/json"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) importJSON(f);
+                      e.currentTarget.value = "";
+                    }}
+                  />
+                  <span className="inline-flex items-center gap-2 px-3 py-2 border rounded-md">
+                    <Upload className="h-4 w-4" /> Import JSON
+                  </span>
+                </label>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Tabs defaultValue="all" className="w-full">
+            <TabsList className="grid grid-cols-3">
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="categories">Categories</TabsTrigger>
+              <TabsTrigger value="popular">Popular</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="all">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Browse</CardTitle>
+                  <CardDescription>Tap to toggle an interest</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ChipGrid items={filtered} selected={selected} onToggle={toggleSelection} />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="categories">
+              <CategoryBrowser selected={selected} onToggle={toggleSelection} />
+            </TabsContent>
+
+            <TabsContent value="popular">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Trending</CardTitle>
+                  <CardDescription>Commonly chosen by users</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ChipGrid
+                    items={[...flatList].sort((a, b) => b.pop - a.pop).slice(0, 40)}
+                    selected={selected}
+                    onToggle={toggleSelection}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </main>
+
+        <footer className="h-20" />
+
+        {/* Mobile sticky actions */}
+        <div className="fixed inset-x-0 bottom-0 border-t bg-white/80 backdrop-blur p-3 sm:hidden">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-sm text-gray-700">
+              <strong>{selectedCount}</strong> selected
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={removeAll} disabled={selectedCount === 0}>
+                Clear
+              </Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Grids & helpers */
+function ChipGrid({
+  items,
+  selected,
+  onToggle,
+}: {
+  items: { key: string; label: string; category: string }[];
+  selected: Record<string, boolean>;
+  onToggle: (label: string) => void;
+}) {
+  if (!items.length) return <p className="text-sm text-gray-600">No results.</p>;
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+      {items.map((t) => (
+        <InterestChip key={t.key} label={t.label} selected={Boolean(selected[t.key])} onToggle={() => onToggle(t.label)} />
+      ))}
+    </div>
+  );
+}
+
+function CategoryBrowser({
+  selected,
+  onToggle,
+}: {
+  selected: Record<string, boolean>;
+  onToggle: (label: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      {Object.entries(CATALOG).map(([cat, items]) => (
+        <Card key={cat}>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base">{cat}</CardTitle>
+                <CardDescription>{items.length} interests</CardDescription>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1">
+                    Bulk actions <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>{cat}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => items.forEach((l) => !selected[keyOf(l)] && onToggle(l))}>
+                    Select all
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => items.forEach((l) => onToggle(l))}>Toggle all</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => items.forEach((l) => selected[keyOf(l)] && onToggle(l))}>
+                    Deselect all
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ChipGrid
+              items={items.map((label) => ({ key: keyOf(label), label, category: cat }))}
+              selected={selected}
+              onToggle={onToggle}
+            />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function capitalize(s: string) {
+  return s.replace(/\b\w/g, (m) => m.toUpperCase());
+}
