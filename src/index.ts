@@ -1,55 +1,55 @@
-import express from "express";
+// src/index.ts
+import "dotenv/config";
+import express, { Request, Response } from "express";
 import cors from "cors";
-import dotenv from "dotenv";
-import { createPool, ensureSchema, getUserInterests, putUserInterests } from "./db.js";
-import { interestsBody, normalizeUserId } from "./validate.js";
-
-
-dotenv.config();
-
+import { authRouter, authMiddleware } from "./auth";
+import { createPool, ensureSchema, getUserInterests, putUserInterests } from "./db";
 
 const app = express();
-app.use(cors({ origin: "*" }));
+app.use(cors());
 app.use(express.json());
 
-
+// ✅ Initialize the pool here (don’t import `pool` directly)
 const pool = createPool();
-ensureSchema(pool).catch((e) => {
-// eslint-disable-next-line no-console
-console.error("Failed to ensure schema", e);
-process.exit(1);
+
+// Ensure schema on boot
+ensureSchema(pool).catch((e: unknown) => {
+  const msg = e instanceof Error ? e.message : String(e);
+  console.error("Failed to ensure schema:", msg);
+  process.exit(1);
 });
 
+app.use("/auth", authRouter);
 
-app.get("/health", (_req, res) => res.json({ ok: true }));
-
-
-app.get("/users/:userId/interests", async (req, res) => {
-try {
-const userId = normalizeUserId(req.params.userId);
-const interests = await getUserInterests(pool, userId);
-res.json({ userId, interests });
-} catch (e: any) {
-res.status(500).json({ error: e.message ?? "Internal error" });
-}
+// Authenticated routes using JWT subject
+app.get("/users/me/interests", authMiddleware, async (req: Request & { user?: any }, res: Response) => {
+  const userId = req.user.sub as string;
+  const interests = await getUserInterests(userId, pool);
+  res.json({ userId, interests });
 });
 
-
-app.put("/users/:userId/interests", async (req, res) => {
-try {
-const userId = normalizeUserId(req.params.userId);
-const parsed = interestsBody.safeParse(req.body);
-if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-await putUserInterests(pool, userId, parsed.data.interests);
-res.json({ userId, saved: parsed.data.interests.length });
-} catch (e: any) {
-res.status(500).json({ error: e.message ?? "Internal error" });
-}
+app.put("/users/me/interests", authMiddleware, async (req: Request & { user?: any }, res: Response) => {
+  const userId = req.user.sub as string;
+  const interests: string[] = Array.isArray(req.body?.interests) ? req.body.interests : [];
+  const saved = await putUserInterests(userId, interests, pool);
+  res.json({ userId, saved });
 });
 
+// Optional legacy compatibility (ignores :userId and uses token)
+app.get("/users/:userId/interests", authMiddleware, async (req: Request & { user?: any }, res: Response) => {
+  const userId = req.user.sub as string;
+  const interests = await getUserInterests(userId, pool);
+  res.json({ userId, interests });
+});
 
-const port = Number(process.env.PORT) || 3000;
-app.listen(port, () => {
-// eslint-disable-next-line no-console
-console.log(`API listening on :${port}`);
+app.put("/users/:userId/interests", authMiddleware, async (req: Request & { user?: any }, res: Response) => {
+  const userId = req.user.sub as string;
+  const interests: string[] = Array.isArray(req.body?.interests) ? req.body.interests : [];
+  const saved = await putUserInterests(userId, interests, pool);
+  res.json({ userId, saved });
+});
+
+const PORT = Number(process.env.PORT || 3000);
+app.listen(PORT, () => {
+  console.log(`API listening on :${PORT}`);
 });

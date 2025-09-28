@@ -1,7 +1,15 @@
 {
-  "files": [],
-  "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
-  ]
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "baseUrl": "./src",
+    "paths": { "@/*": ["*"] },
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],   // ← important
+    "types": ["vite/client"]                     // optional but nice in Vite
+  },
+  "include": ["src"]
 }

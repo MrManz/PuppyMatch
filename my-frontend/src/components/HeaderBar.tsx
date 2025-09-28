@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import React from "react";
 import { Input } from "../components/ui/input";
 import { Search } from "lucide-react";
 
@@ -9,7 +9,7 @@ export default function HeaderBar({
 }: {
   query: string;
   onQueryChange: (v: string) => void;
-  inputRef: RefObject<HTMLInputElement>;
+  inputRef: React.Ref<HTMLInputElement>; // 👈 accept any ref type (object or callback)
 }) {
   return (
     <header className="sticky top-0 z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-6 pb-5 bg-blue-100/90 backdrop-blur rounded-b-3xl shadow">
@@ -23,7 +23,7 @@ export default function HeaderBar({
         <div className="relative flex-1">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" aria-hidden />
           <Input
-            ref={inputRef}
+            ref={inputRef}              // 👈 now compatible with useRef() from App.tsx
             placeholder="Search interests..."
             className="pl-8"
             value={query}
