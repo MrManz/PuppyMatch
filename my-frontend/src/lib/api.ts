@@ -2,8 +2,8 @@
 
 /**
  * Base API URL.
- * - Uses VITE_API_BASE if provided.
- * - Or window.__API_BASE__ (for runtime override).
+ * - Uses VITE_API_BASE if provided
+ * - Or window.__API_BASE__ (for runtime override)
  * - Defaults to http://localhost:3000
  */
 const API_BASE: string =
@@ -19,7 +19,7 @@ function getToken(): string | null {
 }
 
 /**
- * Attach auth headers if token exists
+ * Attach Authorization header if token exists
  */
 function authHeaders(): Record<string, string> {
   const token = getToken();

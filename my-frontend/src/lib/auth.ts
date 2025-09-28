@@ -1,54 +1,49 @@
 // src/lib/auth.ts
-const API_BASE =
-  (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_BASE) ||
-  (typeof window !== "undefined" && (window as any).__API_BASE__) ||
-  "http://localhost:3000";
 
-const LS_TOKEN = "auth_token_v1";
-const LS_USER  = "auth_user_v1";
+/**
+ * Helpers for managing auth token on the frontend.
+ * Uses localStorage to persist the JWT.
+ */
 
-export type User = { id: string; email: string };
+const TOKEN_KEY = "puppymatch_token";
 
-export function saveAuth(token: string, user: User) {
-  localStorage.setItem(LS_TOKEN, token);
-  localStorage.setItem(LS_USER, JSON.stringify(user));
+/**
+ * Save a token (JWT).
+ */
+export function setToken(token: string): void {
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+  } catch {
+    // ignore storage errors (Safari private mode, etc.)
+  }
 }
 
-export function clearAuth() {
-  localStorage.removeItem(LS_TOKEN);
-  localStorage.removeItem(LS_USER);
-}
-
+/**
+ * Get the current token (JWT) from storage.
+ */
 export function getToken(): string | null {
-  return localStorage.getItem(LS_TOKEN);
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
 }
 
-export function getUser(): User | null {
-  const raw = localStorage.getItem(LS_USER);
-  return raw ? JSON.parse(raw) : null;
+/**
+ * Remove token from storage.
+ */
+export function clearToken(): void {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // ignore
+  }
 }
 
-export async function login(email: string, password: string) {
-  const r = await fetch(`${API_BASE}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!r.ok) throw new Error(`Login failed: ${r.status}`);
-  return r.json() as Promise<{ token: string; user: User }>;
-}
-
-export async function register(email: string, password: string) {
-  const r = await fetch(`${API_BASE}/auth/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!r.ok) throw new Error(`Register failed: ${r.status}`);
-  return r.json() as Promise<{ token: string; user: User }>;
-}
-
-export function authHeaders() {
+/**
+ * Build Authorization header if token exists.
+ */
+export function authHeaders(): HeadersInit {
   const t = getToken();
   return t ? { Authorization: `Bearer ${t}` } : {};
 }
