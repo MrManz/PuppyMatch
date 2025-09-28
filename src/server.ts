@@ -13,7 +13,13 @@ const DATABASE_URL =
 const CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:5173";
 
 // --- DB setup ---
-const pool = new Pool({ connectionString: DATABASE_URL });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    ca: process.env.DATABASE_CA,     // <— your PEM from Aiven
+    rejectUnauthorized: true,        // verify server cert against the CA
+  },
+});
 
 /**
  * Ensure the DB schema exists.
