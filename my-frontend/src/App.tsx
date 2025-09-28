@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { ChevronDown, CircleX, Download, Filter, Plus, Save, Search, Upload, X } from "lucide-react";
+import { ChevronDown, CircleX, Filter, Save, Search, X } from "lucide-react";
 
 /**
  * API base configuration
@@ -29,17 +29,7 @@ const API_BASE: string =
  * Catalog
  */
 const CATALOG: Record<string, string[]> = {
-  Outdoors: [
-    "Hiking",
-    "Camping",
-    "Bouldering",
-    "Rock Climbing",
-    "Trail Running",
-    "Cycling",
-    "Birdwatching",
-    "Skiing",
-    "Snowboarding",
-  ],
+  Outdoors: ["Hiking", "Camping", "Bouldering", "Rock Climbing", "Trail Running", "Cycling", "Birdwatching", "Skiing", "Snowboarding"],
   Sports: ["Football", "Basketball", "Tennis", "Table Tennis", "Badminton", "Swimming", "Martial Arts"],
   Creative: ["Painting", "Photography", "Writing", "Calligraphy", "UI/UX", "Graphic Design", "Music Production"],
   Tech: ["Web Development", "Data Science", "Machine Learning", "Cybersecurity", "Open Source", "Blockchain", "DevOps"],
@@ -70,7 +60,7 @@ async function apiPutInterests(userId: string, interests: string[]): Promise<num
   return Number(data?.saved ?? 0);
 }
 
-/** Chip (no paw/check/plus icons; just label) */
+/** Chip */
 function InterestChip({
   label,
   selected,
@@ -85,7 +75,7 @@ function InterestChip({
       onClick={() => onToggle(!selected)}
       className={[
         "px-3 py-2 text-sm rounded-2xl border transition active:scale-[0.98]",
-        selected ? "bg-black text-white border-black" : "bg-white text-black border-gray-300 hover:border-black",
+        selected ? "bg-pink-600 text-white border-pink-600" : "bg-white text-black border-gray-300 hover:border-pink-400",
       ].join(" ")}
       aria-pressed={selected}
     >
@@ -114,7 +104,7 @@ export default function App() {
   const [showOnlySelected, setShowOnlySelected] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { flatList, categories } = useMemo(() => {
+  const { flatList } = useMemo(() => {
     const cats = Object.keys(CATALOG);
     const flat: { key: string; label: string; category: string; pop: number }[] = [];
     for (const cat of cats) {
@@ -124,7 +114,7 @@ export default function App() {
     for (const k of Object.keys(selected)) {
       if (!flat.find((f) => f.key === k)) flat.push({ key: k, label: capitalize(k), category: "Custom", pop: 1 });
     }
-    return { flatList: flat, categories: cats };
+    return { flatList: flat };
   }, [selected]);
 
   /** Persist locally */
@@ -188,42 +178,7 @@ export default function App() {
     });
   };
   const removeAll = () => setSelected({});
-  const addCustom = () => {
-    const val = inputRef.current?.value?.trim();
-    if (!val) return;
-    setSelected((prev) => ({ ...prev, [keyOf(val)]: true }));
-    setQuery("");
-    if (inputRef.current) inputRef.current.value = "";
-    toast.success(`Added "${val}"`);
-  };
-  const exportJSON = () => {
-    const data = JSON.stringify({ interests: Object.keys(selected) }, null, 2);
-    const blob = new Blob([data], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "interests.json";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
-  const importJSON = async (file: File) => {
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      if (Array.isArray(data?.interests)) {
-        const next: Record<string, boolean> = {};
-        for (const it of data.interests) if (typeof it === "string") next[keyOf(it)] = true;
-        setSelected(next);
-        toast.success("Imported interests");
-      } else {
-        toast.error("Invalid file format");
-      }
-    } catch {
-      toast.error("Failed to import file");
-    }
-  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -241,16 +196,19 @@ export default function App() {
   return (
     <div className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-screen-sm p-4 sm:p-6">
-        <header className="sticky top-0 z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-4 pb-3 bg-gray-50/90 backdrop-blur">
+        {/* Pup Play styled header */}
+        <header className="sticky top-0 z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-6 pb-5 bg-pink-100/90 backdrop-blur rounded-b-3xl shadow">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h1 className="text-xl sm:text-2xl font-semibold">Choose your interests</h1>
-              <p className="text-sm text-gray-600">Tap to add or remove interests. API: {API_BASE}</p>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-pink-700 flex items-center gap-2">
+                🐾 PupMatch
+              </h1>
+              <p className="text-sm text-pink-600">Find playmates by choosing your favorite interests!</p>
             </div>
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2">
-                  <Filter className="h-4 w-4" />Filters
+                <Button variant="outline" className="gap-2 border-pink-400 text-pink-700 hover:bg-pink-50">
+                  <Filter className="h-4 w-4" /> Filters
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">
@@ -266,12 +224,6 @@ export default function App() {
                         onChange={(e) => setUserId(e.target.value)}
                         placeholder="user id (email/uuid)"
                       />
-                      <Button
-                        variant="secondary"
-                        onClick={() => setUserId(`user-${Math.random().toString(36).slice(2, 8)}`)}
-                      >
-                        Random
-                      </Button>
                     </div>
                   </div>
                   <div>
@@ -302,23 +254,16 @@ export default function App() {
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" aria-hidden />
               <Input
                 ref={inputRef}
-                placeholder="Search or add a new interest..."
+                placeholder="Search interests..."
                 className="pl-8"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && query.trim()) addCustom();
-                }}
               />
             </div>
-            <Button onClick={addCustom}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add
-            </Button>
           </div>
         </header>
 
-        <main className="mt-4 space-y-6">
+        <main className="mt-6 space-y-6">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Your selection</CardTitle>
@@ -328,7 +273,7 @@ export default function App() {
             </CardHeader>
             <CardContent>
               {Object.keys(selected).length === 0 ? (
-                <p className="text-sm text-gray-600">No interests yet. Try "Hiking", "Podcasts", or add your own.</p>
+                <p className="text-sm text-gray-600">No interests yet. Try picking one below!</p>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {Object.keys(selected)
@@ -354,32 +299,11 @@ export default function App() {
               )}
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button variant="secondary" onClick={removeAll} disabled={Object.keys(selected).length === 0}>
-                  <CircleX className="h-4 w-4 mr-1" />
-                  Clear all
+                  <CircleX className="h-4 w-4 mr-1" /> Clear all
                 </Button>
-                <Button onClick={handleSave} disabled={saving}>
-                  <Save className="h-4 w-4 mr-1" />
-                  {saving ? "Saving…" : "Save preferences"}
+                <Button onClick={handleSave} disabled={saving} className="bg-pink-600 hover:bg-pink-700">
+                  <Save className="h-4 w-4 mr-1" /> {saving ? "Saving…" : "Save preferences"}
                 </Button>
-                <Button variant="outline" onClick={exportJSON}>
-                  <Download className="h-4 w-4 mr-1" />
-                  Export JSON
-                </Button>
-                <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="file"
-                    accept="application/json"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) importJSON(f);
-                      e.currentTarget.value = "";
-                    }}
-                  />
-                  <span className="inline-flex items-center gap-2 px-3 py-2 border rounded-md">
-                    <Upload className="h-4 w-4" /> Import JSON
-                  </span>
-                </label>
               </div>
             </CardContent>
           </Card>
@@ -437,7 +361,7 @@ export default function App() {
               <Button variant="secondary" onClick={removeAll} disabled={selectedCount === 0}>
                 Clear
               </Button>
-              <Button onClick={handleSave} disabled={saving}>
+              <Button onClick={handleSave} disabled={saving} className="bg-pink-600 hover:bg-pink-700 text-white">
                 {saving ? "Saving…" : "Save"}
               </Button>
             </div>
