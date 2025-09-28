@@ -1,22 +1,44 @@
-import { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { CircleX, Save, X } from "lucide-react";
+
+// UI
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
 import { Badge } from "./components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
-import { toast } from "sonner";
-import { CircleX, Save, X } from "lucide-react";
 
-import { keyOf, capitalize } from "./lib/utils";
-import { usePersistedUserId, useInterests } from "./hooks/useInterests";
-
+// App pieces
+import HeaderBar from "./components/HeaderBar";
 import ChipGrid from "./components/ChipGrid";
 import CategoryBrowser from "./components/CategoryBrowser";
-import HeaderBar from "./components/HeaderBar";
+
+// Data & hooks
+import { CATALOG } from "./lib/catalog";
+import { keyOf, capitalize } from "./lib/utils";
+import { useInterests, usePersistedUserId } from "./hooks/useInterests";
+
+// Auth
+import AuthPage from "./pages/AuthPage";
+import { getToken, clearAuth, getUser } from "./lib/auth";
 
 export default function App() {
+  // Auth gate
+  const [authed, setAuthed] = useState<boolean>(!!getToken());
+  const user = getUser();
+
+  if (!authed) {
+    return <AuthPage onAuthed={() => setAuthed(true)} />;
+  }
+
+  // Main app
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Keep userId persistence for compatibility; JWT is actually used on the server
   const { userId } = usePersistedUserId();
-  const { loading, saving, selected, setSelected, flatList, toggleSelection, clearAll, save } = useInterests(userId);
+
+  const { loading, saving, selected, setSelected, flatList, toggleSelection, clearAll, save } =
+    useInterests(userId);
 
   const [query, setQuery] = useState("");
 
@@ -40,18 +62,26 @@ export default function App() {
   return (
     <div className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-screen-sm p-4 sm:p-6">
-        <HeaderBar query={query} onQueryChange={setQuery} inputRef={inputRef} />
+        <HeaderBar
+          query={query}
+          onQueryChange={setQuery}
+          inputRef={inputRef}
+          // Optional: show user + logout on the right (uncomment if you add UI)
+          // userEmail={user?.email}
+          // onLogout={() => { clearAuth(); setAuthed(false); }}
+        />
 
         <main className="mt-6 space-y-6">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Your selection</CardTitle>
               <CardDescription>
-                {loading ? "Loading…" : `${Object.keys(selected).length} selected`} {saving ? " • Saving…" : ""}
+                {loading ? "Loading…" : `${selectedCount} selected`}
+                {saving ? " • Saving…" : ""}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {Object.keys(selected).length === 0 ? (
+              {selectedCount === 0 ? (
                 <p className="text-sm text-gray-600">No interests yet. Tap any chip below to add.</p>
               ) : (
                 <div className="flex flex-wrap gap-2">
@@ -76,13 +106,18 @@ export default function App() {
                     ))}
                 </div>
               )}
+
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button variant="secondary" onClick={clearAll} disabled={Object.keys(selected).length === 0}>
+                <Button variant="secondary" onClick={clearAll} disabled={selectedCount === 0}>
                   <CircleX className="h-4 w-4 mr-1" /> Clear all
                 </Button>
                 <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white">
                   <Save className="h-4 w-4 mr-1" /> {saving ? "Saving…" : "Save preferences"}
                 </Button>
+                {/* Optional logout button */}
+                {/* <Button variant="ghost" onClick={() => { clearAuth(); setAuthed(false); }}>
+                  Log out
+                </Button> */}
               </div>
             </CardContent>
           </Card>
