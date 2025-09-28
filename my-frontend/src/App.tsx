@@ -9,7 +9,9 @@ import { CircleX, Save, Search, X } from "lucide-react";
 
 import CategoryBrowser from "@/components/CategoryBrowser";
 import ChipGrid from "@/components/ChipGrid";
-import { CATALOG, keyOf } from "@/lib/catalog";
+import { CATALOG } from "./lib/catalog";
+
+const keyOf = (s: string) => s.trim().toLowerCase();
 
 /**
  * API base
