@@ -1,167 +1,47 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import React, { useMemo, useRef, useState } from "react";
+import { Button } from "./components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
+import { Badge } from "./components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { toast } from "sonner";
-import { CircleX, Save, Search, X } from "lucide-react";
+import { CircleX, Save, X } from "lucide-react";
 
-import CategoryBrowser from "@/components/CategoryBrowser";
-import ChipGrid from "@/components/ChipGrid";
 import { CATALOG } from "./lib/catalog";
+import { keyOf, capitalize } from "./lib/utils";
+import { usePersistedUserId, useInterests } from "./hooks/useInterests";
 
-const keyOf = (s: string) => s.trim().toLowerCase();
-
-/**
- * API base
- */
-const API_BASE: string =
-  (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_BASE) ||
-  (typeof window !== "undefined" && (window as any).__API_BASE__) ||
-  "http://localhost:3000";
-
-const LS_SELECTED = "interest_picker_selected_v1";
-const LS_USERID = "interest_picker_user_id_v1";
-
-async function apiGetInterests(userId: string): Promise<string[]> {
-  const r = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/interests`);
-  if (!r.ok) throw new Error(`GET interests failed: ${r.status}`);
-  const data = await r.json();
-  return Array.isArray(data?.interests) ? data.interests : [];
-}
-
-async function apiPutInterests(userId: string, interests: string[]): Promise<number> {
-  const r = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/interests`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ interests }),
-  });
-  if (!r.ok) throw new Error(`PUT interests failed: ${r.status}`);
-  const data = await r.json();
-  return Number(data?.saved ?? 0);
-}
+import ChipGrid from "./components/ChipGrid";
+import CategoryBrowser from "./components/CategoryBrowser";
+import HeaderBar from "./components/HeaderBar";
 
 export default function App() {
-  const [userId] = useState<string>(
-    (typeof localStorage !== "undefined" && localStorage.getItem(LS_USERID)) || "demo-user"
-  );
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<Record<string, boolean>>(() => {
-    try {
-      const raw = localStorage.getItem(LS_SELECTED);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
-  });
   const inputRef = useRef<HTMLInputElement>(null);
+  const { userId } = usePersistedUserId();
+  const { loading, saving, selected, setSelected, flatList, toggleSelection, clearAll, save } = useInterests(userId);
 
-  // Build a flat list for "All" and "Popular" tabs (keeps any custom, previously-selected items visible)
-  const { flatList } = useMemo(() => {
-    const cats = Object.keys(CATALOG);
-    const flat: { key: string; label: string; category: string; pop: number }[] = [];
-    for (const cat of cats) {
-      const items = CATALOG[cat];
-      for (const label of items) flat.push({ key: keyOf(label), label, category: cat, pop: items.length });
-    }
-    for (const k of Object.keys(selected)) {
-      if (!flat.find((f) => f.key === k)) flat.push({ key: k, label: capitalize(k), category: "Custom", pop: 1 });
-    }
-    return { flatList: flat };
-  }, [selected]);
+  const [query, setQuery] = useState("");
 
-  // persist selection locally
-  useEffect(() => {
-    try {
-      localStorage.setItem(LS_SELECTED, JSON.stringify(selected));
-    } catch {}
-  }, [selected]);
-
-  // initial load from API
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const interests = await apiGetInterests(userId);
-        if (!cancelled) {
-          const map: Record<string, boolean> = {};
-          for (const it of interests) map[keyOf(it)] = true;
-          setSelected(map);
-        }
-      } catch (e: any) {
-        toast.error(`Failed to load interests: ${e.message || e}`);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
-
-  // simple search filter
   const filtered = useMemo(() => {
     const q = keyOf(query);
     if (!q) return flatList;
     return flatList.filter((t) => keyOf(t.label).includes(q));
   }, [flatList, query]);
 
-  const selectedCount = Object.keys(selected).length;
-
-  const toggleSelection = (label: string) => {
-    const k = keyOf(label);
-    setSelected((prev) => {
-      const next = { ...prev };
-      if (next[k]) delete next[k];
-      else next[k] = true;
-      return next;
-    });
-  };
-
-  const removeAll = () => setSelected({});
-
   const handleSave = async () => {
-    setSaving(true);
     try {
-      const payload = Object.keys(selected);
-      const saved = await apiPutInterests(userId, payload);
+      const saved = await save();
       toast.success(`Saved ${saved} interests`);
     } catch (e: any) {
-      toast.error(`Save failed: ${e.message || e}`);
-    } finally {
-      setSaving(false);
+      toast.error(`Save failed: ${e?.message || e}`);
     }
   };
+
+  const selectedCount = Object.keys(selected).length;
 
   return (
     <div className="min-h-dvh bg-gray-50">
       <div className="mx-auto max-w-screen-sm p-4 sm:p-6">
-        {/* Blue themed header (no Filters button) */}
-        <header className="sticky top-0 z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-6 pb-5 bg-blue-100/90 backdrop-blur rounded-b-3xl shadow">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-blue-700 flex items-center gap-2">🐾 PupMatch</h1>
-              <p className="text-sm text-blue-600">Find playmates by choosing your favorite interests!</p>
-            </div>
-          </div>
-
-          <div className="mt-3 flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" aria-hidden />
-              <Input
-                ref={inputRef}
-                placeholder="Search interests..."
-                className="pl-8"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
-          </div>
-        </header>
+        <HeaderBar query={query} onQueryChange={setQuery} inputRef={inputRef} />
 
         <main className="mt-6 space-y-6">
           <Card>
@@ -198,7 +78,7 @@ export default function App() {
                 </div>
               )}
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button variant="secondary" onClick={removeAll} disabled={Object.keys(selected).length === 0}>
+                <Button variant="secondary" onClick={clearAll} disabled={Object.keys(selected).length === 0}>
                   <CircleX className="h-4 w-4 mr-1" /> Clear all
                 </Button>
                 <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white">
@@ -258,7 +138,7 @@ export default function App() {
               <strong>{selectedCount}</strong> selected
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="secondary" onClick={removeAll} disabled={selectedCount === 0}>
+              <Button variant="secondary" onClick={clearAll} disabled={selectedCount === 0}>
                 Clear
               </Button>
               <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white">
@@ -270,8 +150,4 @@ export default function App() {
       </div>
     </div>
   );
-}
-
-function capitalize(s: string) {
-  return s.replace(/\b\w/g, (m) => m.toUpperCase());
 }

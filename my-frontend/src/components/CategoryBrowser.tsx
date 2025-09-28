@@ -1,7 +1,7 @@
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import ChipGrid from "./ChipGrid";
-import { CATALOG } from "../lib/catalog"; // ⬅️ only CATALOG
+import { CATALOG } from "../lib/catalog";
 
 export default function CategoryBrowser({
   selected,
@@ -23,7 +23,7 @@ export default function CategoryBrowser({
           <CardContent>
             <ChipGrid
               items={items.map((label) => ({
-                key: label.trim().toLowerCase(), // ⬅️ inline key instead of keyOf
+                key: label.trim().toLowerCase(),
                 label,
                 category: cat,
               }))}
