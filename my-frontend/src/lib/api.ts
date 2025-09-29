@@ -76,20 +76,20 @@ export async function apiLogin(email: string, password: string) {
   return data as { token: string; user: StoredUser };
 }
 
-export async function apiRegister(email: string, password: string) {
+// src/lib/api.ts
+export async function apiRegister(email: string, password: string, username: string) {
   const res = await fetch(`${BASE}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, username }), // <- must include username
   });
-
   if (!res.ok) await handleError(res, "Registration failed");
-
   const data = await res.json();
   if (data?.token) localStorage.setItem("token", data.token);
   if (data?.user) setUser(data.user);
-  return data as { token: string; user: StoredUser };
+  return data;
 }
+
 
 // ----------------------
 // Interests endpoints

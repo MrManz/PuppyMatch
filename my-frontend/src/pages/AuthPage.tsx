@@ -1,63 +1,58 @@
 // src/pages/AuthPage.tsx
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { apiLogin, apiRegister } from "../lib/api";
 
-type Props = {
-  onAuthed?: () => void; // optional callback after successful auth
-};
-
-export default function AuthPage({ onAuthed }: Props) {
+export default function AuthPage({ onAuthed }: { onAuthed: () => void }) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState(""); // required in register mode
   const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Clear error when mode changes
-  useEffect(() => {
-    setError(null);
-  }, [mode]);
-
-  // Clear error when user edits inputs
-  useEffect(() => {
-    if (error) setError(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [email, password]);
+  const switchMode = (next: "login" | "register") => {
+    setMode(next);
+    setError(null);          // clear error when switching (requested)
+    setPassword("");         // optional: clear password on switch
+    if (next === "login") setUsername(""); // username not used in login
+  };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError(null);
+    setSubmitting(true);
+
+    const em = email.trim().toLowerCase();
+    const un = username.trim();
 
     try {
-      const fn = mode === "login" ? apiLogin : apiRegister;
-      const res = await fn(email.trim(), password);
-      if (res?.token) {
-        if (onAuthed) onAuthed();
-        else window.location.replace("/");
+      if (mode === "login") {
+        await apiLogin(em, password);
       } else {
-        setError("Unexpected response from server.");
+        if (!un) throw new Error("Please choose a username.");
+        // username must be unique & 3+ chars (backend enforces too)
+        await apiRegister(em, password, un);
       }
+      onAuthed();
     } catch (err: any) {
-      setError(err?.message || (mode === "login" ? "Login failed" : "Registration failed"));
+      // Show readable messages (401, 400, etc. are already mapped in api.ts handleError)
+      const msg = err?.message || "Something went wrong. Please try again.";
+      setError(msg);
     } finally {
-      setBusy(false);
+      setSubmitting(false);
     }
   }
 
   return (
-    <div className="min-h-dvh grid place-items-center bg-gray-50 p-6">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-lg bg-white p-6 shadow"
-      >
-        <h1 className="mb-1 text-xl font-semibold">
-          {mode === "login" ? "Welcome back" : "Create your account"}
+    <div className="min-h-dvh grid place-items-center bg-gray-50 px-4">
+      <div className="w-full max-w-sm rounded-lg bg-white shadow p-6">
+        <h1 className="text-xl font-semibold mb-1">
+          {mode === "login" ? "Log in" : "Create your account"}
         </h1>
-        <p className="mb-4 text-sm text-gray-600">
+        <p className="text-sm text-gray-500 mb-4">
           {mode === "login"
-            ? "Log in to manage your interests."
-            : "Register to start saving your interests."}
+            ? "Welcome back! Enter your email and password."
+            : "Pick a unique username, plus your email and password."}
         </p>
 
         {error && (
@@ -66,45 +61,82 @@ export default function AuthPage({ onAuthed }: Props) {
           </div>
         )}
 
-        <label className="mb-2 block text-sm font-medium text-gray-700">
-          Email
-        </label>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="mb-3 w-full rounded border px-3 py-2 outline-none focus:ring"
-          autoComplete="username"
-          placeholder="you@example.com"
-          required
-        />
+        <form onSubmit={handleSubmit} className="space-y-3">
+          {mode === "register" && (
+            <div>
+              <label className="block text-sm font-medium mb-1" htmlFor="username">
+                Username
+              </label>
+              <input
+                id="username"
+                type="text"
+                autoComplete="username"
+                required
+                minLength={3}
+                value={username}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  if (error) setError(null);
+                }}
+                className="w-full rounded border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="your_name"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                3–24 characters. Letters, numbers, underscores.
+              </p>
+            </div>
+          )}
 
-        <label className="mb-2 block text-sm font-medium text-gray-700">
-          Password
-        </label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="mb-4 w-full rounded border px-3 py-2 outline-none focus:ring"
-          autoComplete={mode === "login" ? "current-password" : "new-password"}
-          placeholder="••••••••"
-          required
-        />
+          <div>
+            <label className="block text-sm font-medium mb-1" htmlFor="email">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (error) setError(null);
+              }}
+              className="w-full rounded border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="you@example.com"
+            />
+          </div>
 
-        <button
-          type="submit"
-          disabled={busy}
-          className="w-full rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {busy
-            ? mode === "login"
-              ? "Logging in…"
-              : "Creating account…"
-            : mode === "login"
-            ? "Log in"
-            : "Register"}
-        </button>
+          <div>
+            <label className="block text-sm font-medium mb-1" htmlFor="password">
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (error) setError(null);
+              }}
+              className="w-full rounded border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="••••••••"
+            />
+            {mode === "register" && (
+              <p className="mt-1 text-xs text-gray-500">At least 6 characters.</p>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full rounded bg-blue-600 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {submitting ? (mode === "login" ? "Logging in…" : "Creating account…") : (mode === "login" ? "Log in" : "Create account")}
+          </button>
+        </form>
 
         <div className="mt-4 text-center text-sm">
           {mode === "login" ? (
@@ -112,8 +144,8 @@ export default function AuthPage({ onAuthed }: Props) {
               Don’t have an account?{" "}
               <button
                 type="button"
-                className="font-medium text-blue-700 hover:underline"
-                onClick={() => setMode("register")}
+                onClick={() => switchMode("register")}
+                className="text-blue-600 hover:underline"
               >
                 Register
               </button>
@@ -123,15 +155,15 @@ export default function AuthPage({ onAuthed }: Props) {
               Already have an account?{" "}
               <button
                 type="button"
-                className="font-medium text-blue-700 hover:underline"
-                onClick={() => setMode("login")}
+                onClick={() => switchMode("login")}
+                className="text-blue-600 hover:underline"
               >
                 Log in
               </button>
             </>
           )}
         </div>
-      </form>
+      </div>
     </div>
   );
 }
