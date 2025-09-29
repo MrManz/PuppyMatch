@@ -3,17 +3,17 @@ import { useEffect, useState } from "react";
 import { apiLogin, apiRegister } from "../lib/api";
 
 type Props = {
-  onAuthed?: () => void; // optional: let parent know we logged in
+  onAuthed?: () => void; // optional callback after successful auth
 };
 
 export default function AuthPage({ onAuthed }: Props) {
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [usernameOrEmail, setUsernameOrEmail] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Clear error whenever mode changes
+  // Clear error when mode changes
   useEffect(() => {
     setError(null);
   }, [mode]);
@@ -22,23 +22,24 @@ export default function AuthPage({ onAuthed }: Props) {
   useEffect(() => {
     if (error) setError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [usernameOrEmail, password]);
+  }, [email, password]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
+
     try {
       const fn = mode === "login" ? apiLogin : apiRegister;
-      const res = await fn(usernameOrEmail.trim(), password);
+      const res = await fn(email.trim(), password);
       if (res?.token) {
-        // If parent passed a callback, use that; otherwise hard-redirect
-        onAuthed ? onAuthed() : (window.location.href = "/");
+        if (onAuthed) onAuthed();
+        else window.location.replace("/");
       } else {
         setError("Unexpected response from server.");
       }
     } catch (err: any) {
-      setError(err?.message || `${mode === "login" ? "Login" : "Register"} failed`);
+      setError(err?.message || (mode === "login" ? "Login failed" : "Registration failed"));
     } finally {
       setBusy(false);
     }
@@ -66,19 +67,21 @@ export default function AuthPage({ onAuthed }: Props) {
         )}
 
         <label className="mb-2 block text-sm font-medium text-gray-700">
-          Email (or username)
+          Email
         </label>
         <input
-          type="text"
-          value={usernameOrEmail}
-          onChange={(e) => setUsernameOrEmail(e.target.value)}
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           className="mb-3 w-full rounded border px-3 py-2 outline-none focus:ring"
           autoComplete="username"
           placeholder="you@example.com"
           required
         />
 
-        <label className="mb-2 block text-sm font-medium text-gray-700">Password</label>
+        <label className="mb-2 block text-sm font-medium text-gray-700">
+          Password
+        </label>
         <input
           type="password"
           value={password}
@@ -94,7 +97,13 @@ export default function AuthPage({ onAuthed }: Props) {
           disabled={busy}
           className="w-full rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {busy ? (mode === "login" ? "Logging in…" : "Creating account…") : (mode === "login" ? "Log in" : "Register")}
+          {busy
+            ? mode === "login"
+              ? "Logging in…"
+              : "Creating account…"
+            : mode === "login"
+            ? "Log in"
+            : "Register"}
         </button>
 
         <div className="mt-4 text-center text-sm">

@@ -71,107 +71,111 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 export function createAuthRouter(pool: Pool) {
   const router = Router();
 
-  router.post("/register", async (req: Request, res: Response) => {
-    try {
-      const body = (req.body ?? {}) as { email?: string; username?: string; password?: string };
-      const rawEmail = (body.email ?? body.username ?? "").toString().trim();
-      const password = (body.password ?? "").toString();
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-      if (!rawEmail || !password) {
-        return res.status(400).json({
-          error: "invalid_body",
-          message: "Please provide both an email (or username) and a password.",
-        });
-      }
+router.post("/register", async (req: Request, res: Response) => {
+  try {
+    const body = (req.body ?? {}) as { email?: string; password?: string };
 
-      const email = rawEmail.toLowerCase();
+    const emailRaw = (body.email ?? "").toString().trim().toLowerCase();
+    const password = (body.password ?? "").toString();
 
-      if (password.length < 6) {
-        return res.status(400).json({
-          error: "weak_password",
-          message: "Your password is too short. It must be at least 6 characters.",
-          detail: "min_length_6",
-        });
-      }
-
-      const hash = await bcrypt.hash(password, 10);
-
-      // Insert; if email exists, rowCount will be 0 due to ON CONFLICT DO NOTHING
-      const q = await pool.query<{ id: string }>(
-        `
-        INSERT INTO users (email, password_hash)
-        VALUES ($1, $2)
-        ON CONFLICT (email) DO NOTHING
-        RETURNING id
-        `,
-        [email, hash]
-      );
-
-      if (q.rowCount === 0) {
-        return res.status(400).json({
-          error: "email_taken",
-          message: "That email is already registered. Try logging in instead.",
-        });
-      }
-
-      const userId = q.rows[0].id;
-      const token = sign(userId);
-      return res.json({ token, user: { id: userId, email } });
-    } catch (err) {
-      console.error("register_failed:", err);
-      return res.status(500).json({
-        error: "register_failed",
-        message: "We couldn’t create your account. Please try again.",
+    if (!emailRaw || !password) {
+      return res.status(400).json({
+        error: "invalid_body",
+        message: "Please provide both email and password.",
       });
     }
-  });
+    if (!EMAIL_RE.test(emailRaw)) {
+      return res.status(400).json({
+        error: "invalid_email",
+        message: "Please enter a valid email address.",
+      });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({
+        error: "weak_password",
+        message: "Your password must be at least 6 characters.",
+      });
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+    const q = await pool.query<{ id: string }>(
+      `INSERT INTO users (email, password_hash)
+       VALUES ($1, $2)
+       ON CONFLICT (email) DO NOTHING
+       RETURNING id`,
+      [emailRaw, hash]
+    );
+    if (q.rowCount === 0) {
+      return res.status(400).json({
+        error: "email_taken",
+        message: "That email is already registered. Try logging in.",
+      });
+    }
+
+    const userId = q.rows[0].id;
+    const token = sign(userId);
+    return res.json({ token, user: { id: userId, email: emailRaw } });
+  } catch (err) {
+    console.error("register_failed:", err);
+    return res.status(500).json({
+      error: "register_failed",
+      message: "We couldn’t create your account. Please try again.",
+    });
+  }
+});
 
   router.post("/login", async (req: Request, res: Response) => {
-    try {
-      const body = (req.body ?? {}) as { email?: string; username?: string; password?: string };
-      const rawEmail = (body.email ?? body.username ?? "").toString().trim();
-      const password = (body.password ?? "").toString();
+  try {
+    const body = (req.body ?? {}) as { email?: string; password?: string };
 
-      if (!rawEmail || !password) {
-        return res.status(400).json({
-          error: "invalid_body",
-          message: "Please provide both your email (or username) and password.",
-        });
-      }
+    const emailRaw = (body.email ?? "").toString().trim().toLowerCase();
+    const password = (body.password ?? "").toString();
 
-      const email = rawEmail.toLowerCase();
-
-      const q = await pool.query<{ id: string; password_hash: string }>(
-        `SELECT id, password_hash FROM users WHERE email = $1`,
-        [email]
-      );
-
-      if (q.rowCount === 0) {
-        return res.status(401).json({
-          error: "invalid_credentials",
-          message: "Invalid username/password combination",
-        });
-      }
-
-      const user = q.rows[0];
-      const ok = await bcrypt.compare(password, user.password_hash);
-      if (!ok) {
-        return res.status(401).json({
-          error: "invalid_credentials",
-          message: "Invalid username/password combination",
-        });
-      }
-
-      const token = sign(user.id);
-      return res.json({ token, user: { id: user.id, email } });
-    } catch (err) {
-      console.error("login_failed:", err);
-      return res.status(500).json({
-        error: "login_failed",
-        message: "We couldn’t sign you in. Please try again.",
+    if (!emailRaw || !password) {
+      return res.status(400).json({
+        error: "invalid_body",
+        message: "Please provide both email and password.",
       });
     }
-  });
+    if (!EMAIL_RE.test(emailRaw)) {
+      return res.status(400).json({
+        error: "invalid_email",
+        message: "Please enter a valid email address.",
+      });
+    }
+
+    const q = await pool.query<{ id: string; password_hash: string }>(
+      `SELECT id, password_hash FROM users WHERE email = $1`,
+      [emailRaw]
+    );
+    if (q.rowCount === 0) {
+      return res.status(401).json({
+        error: "invalid_credentials",
+        message: "Invalid email/password combination",
+      });
+    }
+
+    const user = q.rows[0];
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) {
+      return res.status(401).json({
+        error: "invalid_credentials",
+        message: "Invalid email/password combination",
+      });
+    }
+
+    const token = sign(user.id);
+    return res.json({ token, user: { id: user.id, email: emailRaw } });
+  } catch (err) {
+    console.error("login_failed:", err);
+    return res.status(500).json({
+      error: "login_failed",
+      message: "We couldn’t sign you in. Please try again.",
+    });
+  }
+});
 
   return router;
 }

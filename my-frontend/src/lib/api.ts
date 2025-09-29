@@ -1,135 +1,119 @@
 // src/lib/api.ts
 
-// ---- Base URL ---------------------------------------------------------------
-const BASE: string =
-  (window as any).__API_BASE__ ||
-  import.meta.env.VITE_API_BASE ||
-  "http://localhost:3000";
+/**
+ * This module centralizes API calls and auth token handling.
+ * It assumes the backend issues JWTs at /auth/login and /auth/register.
+ */
 
-// ---- Local storage helpers --------------------------------------------------
+export type StoredUser = { id: string; email: string };
+
+// ----------------------
+// Config
+// ----------------------
+const BASE: string =
+  (import.meta.env.VITE_API_BASE as string) ||
+  "http://localhost:3000"; // fallback for local dev
+
+// ----------------------
+// Local storage helpers
+// ----------------------
 export function getToken(): string | null {
   return localStorage.getItem("token");
 }
 
-export type StoredUser = { id?: string | number; email?: string; username?: string } | null;
-
-export function getUser(): StoredUser {
+export function getUser(): StoredUser | null {
+  const raw = localStorage.getItem("user");
+  if (!raw) return null;
   try {
-    const raw = localStorage.getItem("user");
-    return raw ? JSON.parse(raw) : null;
+    return JSON.parse(raw) as StoredUser;
   } catch {
     return null;
   }
 }
 
-export function logout(redirect = true) {
+export function clearAuth() {
   localStorage.removeItem("token");
   localStorage.removeItem("user");
-  if (redirect) {
-    window.location.href = "/login"; // or your auth route
-  }
 }
 
+// ----------------------
+// Internal helper: handle API errors
+// ----------------------
+async function handleError(res: Response, defaultMsg: string): Promise<never> {
+  let msg = defaultMsg;
+  try {
+    const data = await res.json();
+    if (data?.message) msg = data.message;
+  } catch {
+    /* ignore parse errors */
+  }
+  throw new Error(msg);
+}
 
-// ---- Internal: auth header + fetch wrapper ----------------------------------
-function authHeader(): Record<string, string> {
+function authHeader() {
   const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-/**
- * fetchWithAuth: centralized 401 handling.
- * - If response is 401, clear storage and redirect to /login immediately.
- * - Otherwise returns the Response for normal handling.
- */
-async function fetchWithAuth(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const res = await fetch(input, init);
-  if (res.status === 401) {
-    try {
-      const data = await res.clone().json();
-      if (data?.error === "user_not_found_for_token" || data?.error === "invalid_token") {
-        // treat as unauthorized
-      }
-    } catch {
-      // ignore parse errors, still treat as unauthorized
-    }
-    logout();
-    setTimeout(() => (window.location.href = "/login"), 0);
-    throw new Error("unauthorized");
-  }
-  return res;
-}
-
-// ---- Auth API ---------------------------------------------------------------
-export async function apiLogin(usernameOrEmail: string, password: string) {
+// ----------------------
+// Auth endpoints
+// ----------------------
+export async function apiLogin(email: string, password: string) {
   const res = await fetch(`${BASE}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: usernameOrEmail, password }),
+    body: JSON.stringify({ email, password }),
   });
 
-  if (!res.ok) {
-    let msg = "Login failed";
-    try {
-      const data = await res.json();
-      if (data?.message) msg = data.message; // 👈 use backend message
-    } catch {
-      // ignore parse errors
-    }
-    throw new Error(msg);
-  }
+  if (!res.ok) await handleError(res, "Login failed");
 
   const data = await res.json();
   if (data?.token) localStorage.setItem("token", data.token);
   if (data?.user) localStorage.setItem("user", JSON.stringify(data.user));
-  return data as { token: string; user?: StoredUser };
+  return data as { token: string; user: StoredUser };
 }
 
-export async function apiRegister(usernameOrEmail: string, password: string) {
+export async function apiRegister(email: string, password: string) {
   const res = await fetch(`${BASE}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: usernameOrEmail, password }),
+    body: JSON.stringify({ email, password }),
   });
 
-  if (!res.ok) {
-    let msg = "Registration failed";
-    try {
-      const data = await res.json();
-      if (data?.message) msg = data.message; // 👈 use backend message
-    } catch {
-      // ignore parse errors
-    }
-    throw new Error(msg);
-  }
+  if (!res.ok) await handleError(res, "Registration failed");
 
   const data = await res.json();
   if (data?.token) localStorage.setItem("token", data.token);
   if (data?.user) localStorage.setItem("user", JSON.stringify(data.user));
-  return data as { token: string; user?: StoredUser };
+  return data as { token: string; user: StoredUser };
 }
 
-// ---- Protected API ----------------------------------------------------------
+// ----------------------
+// Interests endpoints
+// ----------------------
 export async function apiGetInterests(): Promise<string[]> {
-  const res = await fetchWithAuth(`${BASE}/users/me/interests`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...authHeader(),
-    },
+  const res = await fetch(`${BASE}/users/me/interests`, {
+    headers: { "Content-Type": "application/json", ...authHeader() },
   });
-  if (!res.ok) throw new Error(`Fetch interests failed: ${res.status}`);
+  if (!res.ok) await handleError(res, "Failed to fetch interests");
   return res.json();
 }
 
 export async function apiPutInterests(interests: string[]) {
-  const res = await fetchWithAuth(`${BASE}/users/me/interests`, {
+  const res = await fetch(`${BASE}/users/me/interests`, {
     method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      ...authHeader(),
-    },
+    headers: { "Content-Type": "application/json", ...authHeader() },
     body: JSON.stringify({ interests }),
   });
-  if (!res.ok) throw new Error(`Save interests failed: ${res.status}`);
+  if (!res.ok) await handleError(res, "Failed to save interests");
   return res.json();
+}
+
+// ----------------------
+// Logout
+// ----------------------
+export function logout() {
+  clearAuth();
+  // Reload app state — App.tsx will show AuthPage again
+  window.location.replace("/");
 }
